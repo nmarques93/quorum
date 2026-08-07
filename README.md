@@ -1,0 +1,29 @@
+# Quorum
+
+Quorum is a dependency-free Python library for coordinating asynchronous LLM agent collectives.
+
+Agents react to events and emit new events instead of calling one another directly. This enables parallel work and dynamic coordination without encoding every workflow as a sequential chain or rigid graph. Rules and policies decide when enough evidence exists to trigger the next stage.
+
+The first release is intentionally single-process and in-memory. It is an agent coordination runtime, not a replacement for Kafka or another durable distributed event log.
+
+## Quickstart
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
+python examples/basic.py
+```
+
+The example creates three independent researchers, waits for a quorum of two findings, and asks a synthesizer to produce an answer. The same event model can wrap LLM calls, tool use, validation, criticism, and human approval.
+
+## Current Semantics
+
+- Events are immutable envelopes with correlation and causation IDs.
+- Matching handlers run concurrently in the current process.
+- `publish()` waits for all matching handlers.
+- A handler failure is raised after all matching handlers have run.
+- Rules fire once per correlation ID and currently keep state in memory.
+- The in-memory log is diagnostic and is not durable.
+
+These semantics are the initial contract and will be expanded only as concrete agent workflows require it.
