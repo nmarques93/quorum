@@ -23,7 +23,7 @@ The example creates three independent researchers, waits for a quorum of two fin
 - Matching handlers run concurrently in the current process.
 - `publish()` waits for all matching handlers.
 - A handler failure is raised after all matching handlers have run.
-- Rules fire once per correlation ID and currently keep state in memory.
+- Rules fire once per correlation ID, can filter events with predicates, and ignore repeated delivery of the same event ID.
 - The in-memory log is diagnostic and is not durable.
 
 These semantics are the initial contract and will be expanded only as concrete agent workflows require it.

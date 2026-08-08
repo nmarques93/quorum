@@ -129,15 +129,26 @@ class EventBus:
 
         return tuple(event for event in self._log if event.correlation_id == correlation_id)
 
-    def when(self, event_types: list[str] | tuple[str, ...]):
-        """Begin a rule that waits for one occurrence of each event type."""
+    def when(
+        self,
+        event_types: list[str] | tuple[str, ...],
+        *,
+        where: Mapping[str, Callable[[Event], bool]] | None = None,
+    ):
+        """Wait for one qualifying occurrence of each event type."""
 
-        return self._get_rule_engine().when(event_types)
+        return self._get_rule_engine().when(event_types, where=where)
 
-    def when_count(self, event_type: str, count: int):
-        """Begin a rule that waits for ``count`` events of one type."""
+    def when_count(
+        self,
+        event_type: str,
+        count: int,
+        *,
+        where: Callable[[Event], bool] | None = None,
+    ):
+        """Wait for ``count`` qualifying events of one type."""
 
-        return self._get_rule_engine().when_count(event_type, count)
+        return self._get_rule_engine().when_count(event_type, count, where=where)
 
     def _get_rule_engine(self):
         from .rules import RuleEngine

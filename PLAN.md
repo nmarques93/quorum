@@ -18,6 +18,7 @@ Event-driven coordination does not remove complexity. Quorum must make the trans
 - In-process async event bus with fan-out and shell-style wildcard subscriptions.
 - Named agents that subscribe to events and automatically propagate causality when emitting.
 - Rules for all-of conditions and quorum counts scoped to a correlation ID.
+- Predicate-aware rules for quality gates and duplicate-event protection during rule evaluation.
 - Causal trace for one logical task.
 - Runnable example with parallel research agents and a synthesizer.
 - Tests covering fan-out, failures, correlation, causation, ordering, and rules.
@@ -38,8 +39,8 @@ Event-driven coordination does not remove complexity. Quorum must make the trans
 
 ### Phase 3: Coordination Policies
 
-- Add thresholds, quorums, deadlines, expiry, quality gates, and conflict handling.
-- Define duplicate and idempotency behavior.
+- Add richer thresholds, deadlines, expiry, and conflict handling.
+- Define transport-level duplicate and idempotency behavior beyond the current rule-level event-ID protection.
 - Prevent runaway loops and unbounded rule state.
 
 ### Phase 4: Observability and Testing
