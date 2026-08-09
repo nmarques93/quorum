@@ -3,6 +3,13 @@
 from .agent import Agent
 from .bus import EventBus, EventDispatchError
 from .event import Event
-from .rules import RuleMatch
+from .rules import RuleMatch, RuleTimeout
 
-__all__ = ["Agent", "Event", "EventBus", "EventDispatchError", "RuleMatch"]
+__all__ = [
+    "Agent",
+    "Event",
+    "EventBus",
+    "EventDispatchError",
+    "RuleMatch",
+    "RuleTimeout",
+]

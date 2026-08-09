@@ -82,6 +82,31 @@ class RuleTests(unittest.IsolatedAsyncioTestCase):
                 where={"outline.done": lambda event: True},
             )
 
+    async def test_rule_can_expire_an_incomplete_correlation(self):
+        bus = EventBus()
+        matches = []
+        timeouts = []
+        rule = (
+            bus.when_count("finding.created", 2, timeout=60)
+            .then(matches.append)
+            .on_timeout(timeouts.append)
+        )
+
+        await bus.publish(Event("finding.created", {"n": 1}, correlation_id="one"))
+        self.assertTrue(await rule.expire("one"))
+        self.assertEqual(matches, [])
+        self.assertEqual([event.payload["n"] for event in timeouts[0].events], [1])
+
+        await bus.publish(Event("finding.created", {"n": 2}, correlation_id="one"))
+        self.assertEqual(matches, [])
+        self.assertFalse(await rule.expire("one"))
+
+    async def test_rule_rejects_non_positive_timeout(self):
+        bus = EventBus()
+
+        with self.assertRaises(ValueError):
+            bus.when(["finding.created"], timeout=0)
+
 
 if __name__ == "__main__":
     unittest.main()

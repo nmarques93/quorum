@@ -19,6 +19,7 @@ Event-driven coordination does not remove complexity. Quorum must make the trans
 - Named agents that subscribe to events and automatically propagate causality when emitting.
 - Rules for all-of conditions and quorum counts scoped to a correlation ID.
 - Predicate-aware rules for quality gates and duplicate-event protection during rule evaluation.
+- Optional rule timeouts with partial-match callbacks and correlation cleanup.
 - Causal trace for one logical task.
 - Runnable example with parallel research agents and a synthesizer.
 - Tests covering fan-out, failures, correlation, causation, ordering, and rules.
@@ -39,9 +40,9 @@ Event-driven coordination does not remove complexity. Quorum must make the trans
 
 ### Phase 3: Coordination Policies
 
-- Add richer thresholds, deadlines, expiry, and conflict handling.
+- Add richer thresholds and conflict handling beyond the current count, predicate, and timeout rules.
 - Define transport-level duplicate and idempotency behavior beyond the current rule-level event-ID protection.
-- Prevent runaway loops and unbounded rule state.
+- Add expiry policies that prevent runaway loops and unbounded rule state.
 
 ### Phase 4: Observability and Testing
 

@@ -134,10 +134,13 @@ class EventBus:
         event_types: list[str] | tuple[str, ...],
         *,
         where: Mapping[str, Callable[[Event], bool]] | None = None,
+        timeout: float | None = None,
     ):
         """Wait for one qualifying occurrence of each event type."""
 
-        return self._get_rule_engine().when(event_types, where=where)
+        return self._get_rule_engine().when(
+            event_types, where=where, timeout=timeout
+        )
 
     def when_count(
         self,
@@ -145,10 +148,13 @@ class EventBus:
         count: int,
         *,
         where: Callable[[Event], bool] | None = None,
+        timeout: float | None = None,
     ):
         """Wait for ``count`` qualifying events of one type."""
 
-        return self._get_rule_engine().when_count(event_type, count, where=where)
+        return self._get_rule_engine().when_count(
+            event_type, count, where=where, timeout=timeout
+        )
 
     def _get_rule_engine(self):
         from .rules import RuleEngine
