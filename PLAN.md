@@ -17,6 +17,7 @@ Event-driven coordination does not remove complexity. Quorum must make the trans
 - Immutable event envelope with event type, payload, event ID, source, timestamp, correlation ID, causation ID, and sequence.
 - In-process async event bus with fan-out and shell-style wildcard subscriptions.
 - Named agents that subscribe to events and automatically propagate causality when emitting.
+- Explicit agent lifecycle with handler timeouts, retries, cancellation on stop, and failure events.
 - Rules for all-of conditions and quorum counts scoped to a correlation ID.
 - Predicate-aware rules for quality gates and duplicate-event protection during rule evaluation.
 - Optional rule timeouts with partial-match callbacks and correlation cleanup.
@@ -34,9 +35,9 @@ Event-driven coordination does not remove complexity. Quorum must make the trans
 
 ### Phase 2: Agent Runtime
 
-- Add explicit start/stop lifecycle and health reporting.
-- Add per-agent timeout, retry, cancellation, and failure policies.
-- Add task context for budget and deadline propagation.
+- Add health reporting.
+- Add richer per-agent timeout, retry, cancellation, and failure policies.
+- Add task context for budget, deadline, and LLM usage propagation.
 
 ### Phase 3: Coordination Policies
 

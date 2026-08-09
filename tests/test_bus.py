@@ -19,6 +19,8 @@ class EventBusTests(unittest.IsolatedAsyncioTestCase):
         async def handle_second(event):
             seen.append((second.name, event.type))
 
+        await first.start()
+        await second.start()
         await bus.publish(Event("goal.created", {"value": 1}, correlation_id="run-1"))
 
         self.assertEqual(seen, [("first", "goal.created"), ("second", "goal.created")])

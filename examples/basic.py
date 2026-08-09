@@ -40,6 +40,8 @@ async def main() -> None:
         "answer.created",
         lambda event: print(f"{event.type}: {event.payload['answer']}"),
     )
+    await asyncio.gather(*(researcher.start() for researcher in researchers))
+    await synthesizer.start()
     await bus.publish(Event("goal.created", {"question": "What should we investigate?"}))
 
     print("trace:", " -> ".join(event.type for event in bus.trace(bus.log[0].correlation_id)))

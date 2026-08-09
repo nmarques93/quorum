@@ -23,6 +23,8 @@ The example creates three independent researchers, waits for a quorum of two fin
 - Matching handlers run concurrently in the current process.
 - `publish()` waits for all matching handlers.
 - A handler failure is raised after all matching handlers have run.
+- Agents are inactive until `start()` and stop accepting events after `stop()`.
+- Agent handlers support timeouts, retries with exponential backoff, and `agent.failed` diagnostics.
 - Rules fire once per correlation ID, can filter events with predicates, and ignore repeated delivery of the same event ID.
 - Rules can have a timeout and an `on_timeout` callback for incomplete work.
 - The in-memory log is diagnostic and is not durable.
