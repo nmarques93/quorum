@@ -6,13 +6,44 @@ import asyncio
 import contextvars
 import fnmatch
 import inspect
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
+from datetime import datetime, timedelta
 from typing import Any, Awaitable, Callable, Mapping
 from uuid import uuid4
 
 from .event import Event
 
 Handler = Callable[[Event], Awaitable[Any] | Any]
+Sink = Callable[[Event], Awaitable[Any] | Any]
+
+
+@dataclass(frozen=True, slots=True)
+class TraceReport:
+    """Aggregated metadata for one logical task."""
+
+    correlation_id: str
+    events: tuple[Event, ...]
+    errors: tuple[Event, ...] = field(default_factory=tuple)
+
+    @property
+    def first_at(self) -> datetime | None:
+        if not self.events:
+            return None
+        return min(event.timestamp for event in self.events)
+
+    @property
+    def last_at(self) -> datetime | None:
+        if not self.events:
+            return None
+        return max(event.timestamp for event in self.events)
+
+    @property
+    def duration(self) -> timedelta | None:
+        first = self.first_at
+        last = self.last_at
+        if first is None or last is None:
+            return None
+        return last - first
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +79,7 @@ class EventBus:
             contextvars.ContextVar("quorum_current_event", default=None)
         )
         self._rule_engine: Any = None
+        self._sinks: list[Sink] = []
 
     @property
     def log(self) -> tuple[Event, ...]:
@@ -73,6 +105,22 @@ class EventBus:
 
         return unsubscribe
 
+    def add_sink(self, sink: Sink) -> Callable[[], None]:
+        """Attach an event observer fired for every published event.
+
+        Sinks are notified after the in-memory log is updated and before
+        handlers run. A sink failure is silently dropped and must not affect
+        the bus.
+        """
+
+        self._sinks.append(sink)
+
+        def remove() -> None:
+            if sink in self._sinks:
+                self._sinks.remove(sink)
+
+        return remove
+
     async def publish(
         self,
         event: Event | str,
@@ -96,6 +144,7 @@ class EventBus:
         self._sequence += 1
         published = replace(event, sequence=self._sequence)
         self._log.append(published)
+        await self._notify_sinks(published)
 
         matching = [
             subscription
@@ -128,6 +177,27 @@ class EventBus:
         """Return all published events belonging to one logical task."""
 
         return tuple(event for event in self._log if event.correlation_id == correlation_id)
+
+    def trace_report(self, correlation_id: str) -> TraceReport:
+        """Return aggregated metadata for one logical task."""
+
+        events = self.trace(correlation_id)
+        return TraceReport(
+            correlation_id=correlation_id,
+            events=events,
+            errors=tuple(
+                event for event in events if event.type == "agent.failed"
+            ),
+        )
+
+    async def _notify_sinks(self, event: Event) -> None:
+        for sink in self._sinks:
+            try:
+                result = sink(event)
+                if inspect.isawaitable(result):
+                    await result
+            except Exception:
+                pass
 
     def when(
         self,

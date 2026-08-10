@@ -24,6 +24,7 @@ Event-driven coordination does not remove complexity. Quorum must make the trans
 - Causal trace for one logical task.
 - Runnable example with parallel research agents and a synthesizer.
 - Tests covering fan-out, failures, correlation, causation, ordering, and rules.
+- JSONL event sink, enriched trace reports, and a CLI log watcher.
 
 ## Next Phases
 
@@ -47,8 +48,7 @@ Event-driven coordination does not remove complexity. Quorum must make the trans
 
 ### Phase 4: Observability and Testing
 
-- Add structured event sinks and optional JSONL persistence.
-- Provide causal traces including agent failures and LLM usage metadata.
+- Add LLM usage metadata to trace reports (prompt tokens, cached tokens, model latency).
 - Add deterministic stepping and fake agent/provider utilities.
 
 ### Phase 5: Backend Abstraction
