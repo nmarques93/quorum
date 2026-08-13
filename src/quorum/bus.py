@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import Any, Awaitable, Callable, Mapping
 from uuid import uuid4
 
+from .clock import Clock, SystemClock
 from .event import Event
 
 Handler = Callable[[Event], Awaitable[Any] | Any]
@@ -71,7 +72,8 @@ class EventBus:
     supported and inherit the active event context through :class:`Agent`.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, clock: Clock | None = None) -> None:
+        self.clock: Clock = clock if clock is not None else SystemClock()
         self._subscriptions: list[_Subscription] = []
         self._log: list[Event] = []
         self._sequence = 0

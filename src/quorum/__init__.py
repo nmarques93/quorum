@@ -2,6 +2,7 @@
 
 from .agent import Agent
 from .bus import EventBus, EventDispatchError, TraceReport
+from .clock import ManualClock, SystemClock
 from .event import Event
 from .rules import RuleMatch, RuleTimeout
 from .sink import JsonlEventLog
@@ -12,7 +13,9 @@ __all__ = [
     "EventBus",
     "EventDispatchError",
     "JsonlEventLog",
+    "ManualClock",
     "RuleMatch",
     "RuleTimeout",
+    "SystemClock",
     "TraceReport",
 ]

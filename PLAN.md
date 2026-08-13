@@ -25,6 +25,7 @@ Event-driven coordination does not remove complexity. Quorum must make the trans
 - Runnable example with parallel research agents and a synthesizer.
 - Tests covering fan-out, failures, correlation, causation, ordering, and rules.
 - JSONL event sink, enriched trace reports, and a CLI log watcher.
+- Injectable clock with a deterministic manual mode and pytest fixtures.
 
 ## Next Phases
 
@@ -49,7 +50,7 @@ Event-driven coordination does not remove complexity. Quorum must make the trans
 ### Phase 4: Observability and Testing
 
 - Add LLM usage metadata to trace reports (prompt tokens, cached tokens, model latency).
-- Add deterministic stepping and fake agent/provider utilities.
+- Add fake agent/provider utilities for richer downstream tests.
 
 ### Phase 5: Backend Abstraction
 

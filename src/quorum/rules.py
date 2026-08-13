@@ -8,6 +8,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Awaitable, Callable, Mapping
 
+from .clock import Clock, TimerHandle
 from .event import Event
 
 RuleHandler = Callable[["RuleMatch"], Awaitable[object] | object]
@@ -43,17 +44,19 @@ class Rule:
         requirements: Mapping[str, _Requirement],
         handler: RuleHandler,
         timeout: float | None,
+        clock: Clock,
     ) -> None:
         self.requirements = requirements
         self.handler = handler
         self.timeout = timeout
+        self.clock = clock
         self.timeout_handler: TimeoutHandler | None = None
         self._events: dict[str, dict[str, list[Event]]] = defaultdict(
             lambda: defaultdict(list)
         )
         self._seen_event_ids: dict[str, set[str]] = defaultdict(set)
         self._closed: set[str] = set()
-        self._timers: dict[str, asyncio.TimerHandle] = {}
+        self._timers: dict[str, TimerHandle] = {}
 
     async def observe(self, event: Event) -> None:
         if event.type not in self.requirements or event.correlation_id in self._closed:
@@ -116,8 +119,7 @@ class Rule:
     def _start_timer(self, correlation_id: str) -> None:
         if self.timeout is None or correlation_id in self._timers:
             return
-        loop = asyncio.get_running_loop()
-        self._timers[correlation_id] = loop.call_later(
+        self._timers[correlation_id] = self.clock.call_later(
             self.timeout, self._schedule_expiry, correlation_id
         )
 
@@ -169,6 +171,7 @@ class RuleBuilder:
 
 class RuleEngine:
     def __init__(self, bus) -> None:
+        self._bus = bus
         self._rules: list[Rule] = []
         bus.subscribe("*", self._observe)
 
@@ -216,7 +219,7 @@ class RuleEngine:
         handler: RuleHandler,
         timeout: float | None,
     ) -> Rule:
-        rule = Rule(requirements, handler, timeout)
+        rule = Rule(requirements, handler, timeout, self._bus.clock)
         self._rules.append(rule)
         return rule
 

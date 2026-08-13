@@ -189,7 +189,7 @@ class Agent:
                         if timeout is None:
                             await result
                         else:
-                            await asyncio.wait_for(result, timeout)
+                            await self.bus.clock.wait_for(result, timeout)
                     return
                 except asyncio.CancelledError:
                     raise
@@ -198,7 +198,7 @@ class Agent:
                         await self._report_failure(event, error, attempt + 1, timeout)
                         raise
                     if retry_delay:
-                        await asyncio.sleep(retry_delay * (2**attempt))
+                        await self.bus.clock.sleep(retry_delay * (2**attempt))
         finally:
             if task is not None:
                 self._active_tasks.discard(task)
