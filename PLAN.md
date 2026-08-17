@@ -26,6 +26,7 @@ Event-driven coordination does not remove complexity. Quorum must make the trans
 - Tests covering fan-out, failures, correlation, causation, ordering, and rules.
 - JSONL event sink, enriched trace reports, and a CLI log watcher.
 - Injectable clock with a deterministic manual mode and pytest fixtures.
+- Task context with deadlines, budgets, and cancellation scoped to a correlation ID.
 
 ## Next Phases
 
@@ -39,7 +40,7 @@ Event-driven coordination does not remove complexity. Quorum must make the trans
 
 - Add health reporting.
 - Add richer per-agent timeout, retry, cancellation, and failure policies.
-- Add task context for budget, deadline, and LLM usage propagation.
+- Record LLM usage (prompt/completion tokens, cost) in the task context and trace reports.
 
 ### Phase 3: Coordination Policies
 

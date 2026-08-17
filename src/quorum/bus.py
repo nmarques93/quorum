@@ -8,14 +8,32 @@ import fnmatch
 import inspect
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
+from types import MappingProxyType
 from typing import Any, Awaitable, Callable, Mapping
 from uuid import uuid4
 
-from .clock import Clock, SystemClock
+from .clock import Clock, SystemClock, TimerHandle
 from .event import Event
 
 Handler = Callable[[Event], Awaitable[Any] | Any]
 Sink = Callable[[Event], Awaitable[Any] | Any]
+
+
+@dataclass(frozen=True, slots=True)
+class TaskContext:
+    """Deadline, budget, and cancellation state for one logical task."""
+
+    correlation_id: str
+    deadline: float | None = None
+    budget: Mapping[str, float] = field(default_factory=dict)
+    cancelled: bool = False
+
+    def remaining(self, now: float) -> float | None:
+        """Seconds until ``deadline`` measured by the supplied clock time."""
+
+        if self.deadline is None:
+            return None
+        return self.deadline - now
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,8 +98,14 @@ class EventBus:
         self._current_event: contextvars.ContextVar[Event | None] = (
             contextvars.ContextVar("quorum_current_event", default=None)
         )
+        self._current_task_context: contextvars.ContextVar[TaskContext | None] = (
+            contextvars.ContextVar("quorum_current_task_context", default=None)
+        )
         self._rule_engine: Any = None
         self._sinks: list[Sink] = []
+        self._task_contexts: dict[str, TaskContext] = {}
+        self._deadline_timers: dict[str, TimerHandle] = {}
+        self._active: dict[str, set[asyncio.Task[Any]]] = {}
 
     @property
     def log(self) -> tuple[Event, ...]:
@@ -94,6 +118,90 @@ class EventBus:
         """Return the event handled by the current async task, if any."""
 
         return self._current_event.get()
+
+    @property
+    def current_task_context(self) -> TaskContext | None:
+        """Return the task context for the event being handled, if any."""
+
+        return self._current_task_context.get()
+
+    def task_context(self, correlation_id: str) -> TaskContext | None:
+        """Return the registered context for a logical task."""
+
+        return self._task_contexts.get(correlation_id)
+
+    def remaining_time(self) -> float | None:
+        """Seconds until the current task deadline, if one is set."""
+
+        context = self._current_task_context.get()
+        if context is None or context.deadline is None:
+            return None
+        return context.deadline - self.clock.now()
+
+    def start_task(
+        self,
+        correlation_id: str,
+        *,
+        deadline: float | None = None,
+        budget: Mapping[str, float] | None = None,
+    ) -> TaskContext:
+        """Register a logical task with an optional deadline and budget.
+
+        A positive ``deadline`` schedules automatic cancellation of in-flight
+        handlers for ``correlation_id`` when it expires.
+        """
+
+        if correlation_id in self._task_contexts:
+            raise ValueError(f"task {correlation_id!r} is already started")
+        if deadline is not None and deadline <= 0:
+            raise ValueError("deadline must be a positive number of seconds")
+
+        clock_deadline: float | None = None
+        if deadline is not None:
+            clock_deadline = self.clock.now() + deadline
+            self._deadline_timers[correlation_id] = self.clock.call_later(
+                deadline, self._on_deadline, correlation_id
+            )
+
+        context = TaskContext(
+            correlation_id=correlation_id,
+            deadline=clock_deadline,
+            budget=MappingProxyType(dict(budget or {})),
+        )
+        self._task_contexts[correlation_id] = context
+        return context
+
+    def cancel(self, correlation_id: str) -> bool:
+        """Cancel in-flight handlers for a task and mark it cancelled.
+
+        Returns ``True`` if the task was active, ``False`` otherwise.
+        """
+
+        context = self._task_contexts.get(correlation_id)
+        if context is None or context.cancelled:
+            return False
+
+        self._task_contexts[correlation_id] = replace(context, cancelled=True)
+
+        timer = self._deadline_timers.pop(correlation_id, None)
+        if timer is not None:
+            timer.cancel()
+
+        try:
+            current = asyncio.current_task()
+        except RuntimeError:
+            current = None
+
+        for task in list(self._active.get(correlation_id, ())):
+            if task is not current and not task.done():
+                task.cancel()
+
+        if self._rule_engine is not None:
+            self._rule_engine.cancel(correlation_id)
+        return True
+
+    def _on_deadline(self, correlation_id: str) -> None:
+        self.cancel(correlation_id)
 
     def subscribe(self, pattern: str, handler: Handler) -> Callable[[], None]:
         """Subscribe a handler to an exact type or shell-style wildcard."""
@@ -156,21 +264,34 @@ class EventBus:
         if not matching:
             return published
 
+        context = self._task_contexts.get(published.correlation_id)
+
         async def invoke(subscription: _Subscription) -> Any:
-            token = self._current_event.set(published)
+            event_token = self._current_event.set(published)
+            context_token = self._current_task_context.set(context)
             try:
                 result = subscription.handler(published)
                 if inspect.isawaitable(result):
                     return await result
                 return result
             finally:
-                self._current_event.reset(token)
+                self._current_event.reset(event_token)
+                self._current_task_context.reset(context_token)
 
-        results = await asyncio.gather(
-            *(invoke(subscription) for subscription in matching),
-            return_exceptions=True,
-        )
-        errors = [result for result in results if isinstance(result, BaseException)]
+        tasks = [asyncio.create_task(invoke(subscription)) for subscription in matching]
+        active = self._active.setdefault(published.correlation_id, set())
+        active.update(tasks)
+        try:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+        finally:
+            for task in tasks:
+                active.discard(task)
+            if not active:
+                self._active.pop(published.correlation_id, None)
+
+        if any(isinstance(result, asyncio.CancelledError) for result in results):
+            raise asyncio.CancelledError()
+        errors = [result for result in results if isinstance(result, Exception)]
         if errors:
             raise EventDispatchError(published, errors)
         return published

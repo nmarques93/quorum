@@ -116,6 +116,17 @@ class Rule:
             await result
         return True
 
+    def cancel(self, correlation_id: str) -> bool:
+        """Drop a correlation without firing the timeout handler."""
+
+        if correlation_id in self._closed:
+            return False
+        self._events.pop(correlation_id, None)
+        self._seen_event_ids.pop(correlation_id, None)
+        self._closed.add(correlation_id)
+        self._cancel_timer(correlation_id)
+        return True
+
     def _start_timer(self, correlation_id: str) -> None:
         if self.timeout is None or correlation_id in self._timers:
             return
@@ -222,6 +233,12 @@ class RuleEngine:
         rule = Rule(requirements, handler, timeout, self._bus.clock)
         self._rules.append(rule)
         return rule
+
+    def cancel(self, correlation_id: str) -> None:
+        """Drop ``correlation_id`` from every rule without firing handlers."""
+
+        for rule in self._rules:
+            rule.cancel(correlation_id)
 
     @staticmethod
     def _validate_timeout(timeout: float | None) -> None:

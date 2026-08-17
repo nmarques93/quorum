@@ -17,25 +17,88 @@ python examples/basic.py
 
 The example creates three independent researchers, waits for a quorum of two findings, and asks a synthesizer to produce an answer. The same event model can wrap LLM calls, tool use, validation, criticism, and human approval.
 
+## Example Workflow
+
+```python
+import asyncio
+from quorum import Agent, Event, EventBus
+
+async def main():
+    bus = EventBus()
+    researcher = Agent("researcher", bus, timeout=60, retries=2)
+    synthesizer = Agent("synthesizer", bus)
+
+    @researcher.on("goal.created")
+    async def research(event):
+        # wrap your own model/tool call here
+        await researcher.emit("finding.created", {"finding": "..."})
+
+    @synthesizer.on("synthesis.requested")
+    async def synthesize(event):
+        await synthesizer.emit("answer.created", {"answer": "..."})
+
+    async def request_synthesis(match):
+        await synthesizer.emit(
+            "synthesis.requested",
+            {"findings": [e.payload for e in match.events]},
+            correlation_id=match.correlation_id,
+        )
+
+    bus.when_count("finding.created", 3).then(request_synthesis)
+
+    await asyncio.gather(researcher.start(), synthesizer.start())
+    await bus.publish(Event("goal.created", {"question": "..."}, correlation_id="run-1"))
+
+    print(bus.trace_report("run-1").events)
+
+asyncio.run(main())
+```
+
+Agents never call each other directly. They emit events, and rules decide when the next stage runs.
+
 ## Deterministic Testing
 
 Inject a `ManualClock` so timeouts, retries, and rule expiry never rely on wall-clock sleeps:
 
 ```python
-from quorum import Agent, EventBus, ManualClock
+import asyncio
+from quorum import Agent, Event, EventBus, ManualClock
 
 clock = ManualClock()
 bus = EventBus(clock=clock)
-
 agent = Agent("worker", bus, timeout=5)
-await agent.start()
 
+started = asyncio.Event()
+
+@agent.on("job.created")
+async def handle(event):
+    started.set()
+    await asyncio.sleep(1000)  # a long, real sleep
+
+await agent.start()
 task = asyncio.create_task(bus.publish(Event("job.created")))
-await asyncio.sleep(0)   # let the handler start
-await clock.advance(5)   # fire the timeout deterministically
+await started.wait()     # handler is now running
+await clock.advance(5)   # fire the timeout without waiting 5 real seconds
 ```
 
 With pytest, `quorum.testing` provides `clock`, `bus`, and `agent_factory` fixtures.
+
+## Task Context and Cancellation
+
+Register a logical task with a deadline and budget, then cancel it — or let the deadline cancel it automatically:
+
+```python
+bus.start_task("run-1", deadline=60, budget={"tokens": 50000})
+
+@agent.on("job.created")
+async def handle(event):
+    ctx = bus.current_task_context
+    print(ctx.budget["tokens"], bus.remaining_time())
+
+bus.cancel("run-1")  # cancels in-flight handlers for run-1
+```
+
+Inside a handler, `bus.current_task_context` exposes the deadline, budget, and cancellation state; `bus.remaining_time()` returns seconds until the deadline. A positive `deadline` schedules cancellation via the injected clock, so tests advance it deterministically.
 
 ## Current Semantics
 
@@ -50,6 +113,7 @@ With pytest, `quorum.testing` provides `clock`, `bus`, and `agent_factory` fixtu
 - `python -m quorum.tail` replays or watches JSONL log files.
 - A `ManualClock` can be injected via `EventBus(clock=...)` so timeouts, retries, and rule expiry advance deterministically in tests.
 - `quorum.testing` provides pytest fixtures (`clock`, `bus`, `agent_factory`) and a `run_until_quiescent` helper.
+- Tasks can be registered with a deadline and budget, cancelled on demand, and auto-cancelled when the deadline expires.
 - Rules fire once per correlation ID, can filter events with predicates, and ignore repeated delivery of the same event ID.
 - Rules can have a timeout and an `on_timeout` callback for incomplete work.
 - The in-memory log is diagnostic and is not durable.

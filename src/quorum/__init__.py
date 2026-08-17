@@ -1,7 +1,7 @@
 """Event-driven coordination primitives for async agent collectives."""
 
 from .agent import Agent
-from .bus import EventBus, EventDispatchError, TraceReport
+from .bus import EventBus, EventDispatchError, TaskContext, TraceReport
 from .clock import ManualClock, SystemClock
 from .event import Event
 from .rules import RuleMatch, RuleTimeout
@@ -17,5 +17,6 @@ __all__ = [
     "RuleMatch",
     "RuleTimeout",
     "SystemClock",
+    "TaskContext",
     "TraceReport",
 ]
