@@ -31,7 +31,11 @@ async def main():
     @researcher.on("goal.created")
     async def research(event):
         # wrap your own model/tool call here
-        await researcher.emit("finding.created", {"finding": "..."})
+        await researcher.emit(
+            "finding.created",
+            {"finding": "..."},
+            usage={"prompt_tokens": 120, "completion_tokens": 30, "cost_usd": 0.002},
+        )
 
     @synthesizer.on("synthesis.requested")
     async def synthesize(event):
@@ -49,12 +53,12 @@ async def main():
     await asyncio.gather(researcher.start(), synthesizer.start())
     await bus.publish(Event("goal.created", {"question": "..."}, correlation_id="run-1"))
 
-    print(bus.trace_report("run-1").events)
+    print(bus.trace_report("run-1").total_usage)
 
 asyncio.run(main())
 ```
 
-Agents never call each other directly. They emit events, and rules decide when the next stage runs.
+Agents never call each other directly. They emit events, and rules decide when the next stage runs. Usage attached to events (tokens, cost, latency) is aggregated by `trace_report`, and a registered task budget surfaces in `remaining_budget`.
 
 ## Deterministic Testing
 
@@ -114,6 +118,7 @@ Inside a handler, `bus.current_task_context` exposes the deadline, budget, and c
 - A `ManualClock` can be injected via `EventBus(clock=...)` so timeouts, retries, and rule expiry advance deterministically in tests.
 - `quorum.testing` provides pytest fixtures (`clock`, `bus`, `agent_factory`) and a `run_until_quiescent` helper.
 - Tasks can be registered with a deadline and budget, cancelled on demand, and auto-cancelled when the deadline expires.
+- Events carry optional usage metrics (tokens, cost, latency) that `trace_report` aggregates against the task budget.
 - Rules fire once per correlation ID, can filter events with predicates, and ignore repeated delivery of the same event ID.
 - Rules can have a timeout and an `on_timeout` callback for incomplete work.
 - The in-memory log is diagnostic and is not durable.

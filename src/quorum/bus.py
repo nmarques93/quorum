@@ -43,6 +43,7 @@ class TraceReport:
     correlation_id: str
     events: tuple[Event, ...]
     errors: tuple[Event, ...] = field(default_factory=tuple)
+    budget: Mapping[str, float] = field(default_factory=dict)
 
     @property
     def first_at(self) -> datetime | None:
@@ -63,6 +64,26 @@ class TraceReport:
         if first is None or last is None:
             return None
         return last - first
+
+    @property
+    def total_usage(self) -> Mapping[str, float]:
+        """Sum every numeric usage metric across the task's events."""
+
+        totals: dict[str, float] = {}
+        for event in self.events:
+            for key, value in event.usage.items():
+                if isinstance(value, (int, float)):
+                    totals[key] = totals.get(key, 0.0) + value
+        return totals
+
+    @property
+    def remaining_budget(self) -> Mapping[str, float]:
+        """Budget minus total usage for each budgeted metric."""
+
+        usage = self.total_usage
+        return {
+            key: self.budget[key] - usage.get(key, 0.0) for key in self.budget
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -239,6 +260,7 @@ class EventBus:
         correlation_id: str | None = None,
         causation_id: str | None = None,
         source: str | None = None,
+        usage: Mapping[str, float] | None = None,
     ) -> Event:
         """Publish an event and wait for all matching handlers to finish."""
 
@@ -249,6 +271,7 @@ class EventBus:
                 correlation_id=correlation_id or uuid4().hex,
                 causation_id=causation_id,
                 source=source,
+                usage=usage or {},
             )
 
         self._sequence += 1
@@ -305,12 +328,14 @@ class EventBus:
         """Return aggregated metadata for one logical task."""
 
         events = self.trace(correlation_id)
+        context = self._task_contexts.get(correlation_id)
         return TraceReport(
             correlation_id=correlation_id,
             events=events,
             errors=tuple(
                 event for event in events if event.type == "agent.failed"
             ),
+            budget=context.budget if context is not None else {},
         )
 
     async def _notify_sinks(self, event: Event) -> None:

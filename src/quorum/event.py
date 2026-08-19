@@ -23,9 +23,11 @@ class Event:
     event_id: str = field(default_factory=lambda: uuid4().hex)
     timestamp: datetime = field(default_factory=_utc_now)
     sequence: int | None = None
+    usage: Mapping[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "payload", MappingProxyType(dict(self.payload)))
+        object.__setattr__(self, "usage", MappingProxyType(dict(self.usage)))
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-compatible representation of the event envelope."""
@@ -39,4 +41,5 @@ class Event:
             "event_id": self.event_id,
             "timestamp": self.timestamp.isoformat(),
             "sequence": self.sequence,
+            "usage": dict(self.usage),
         }

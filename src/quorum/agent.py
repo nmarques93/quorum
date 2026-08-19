@@ -125,6 +125,7 @@ class Agent:
         *,
         correlation_id: str | None = None,
         causation_id: str | None | object = _UNSET,
+        usage: Mapping[str, float] | None = None,
     ) -> Event:
         """Emit an event, inheriting context from the active handler."""
 
@@ -143,6 +144,7 @@ class Agent:
                 correlation_id=correlation_id,
                 causation_id=actual_causation_id,
                 source=self.name,
+                usage=usage or {},
             )
         )
 

@@ -27,6 +27,7 @@ Event-driven coordination does not remove complexity. Quorum must make the trans
 - JSONL event sink, enriched trace reports, and a CLI log watcher.
 - Injectable clock with a deterministic manual mode and pytest fixtures.
 - Task context with deadlines, budgets, and cancellation scoped to a correlation ID.
+- Per-event usage metadata (tokens, cost, latency) aggregated against the task budget.
 
 ## Next Phases
 
@@ -40,7 +41,7 @@ Event-driven coordination does not remove complexity. Quorum must make the trans
 
 - Add health reporting.
 - Add richer per-agent timeout, retry, cancellation, and failure policies.
-- Record LLM usage (prompt/completion tokens, cost) in the task context and trace reports.
+- Add supervisor/liveness hooks for stuck agents.
 
 ### Phase 3: Coordination Policies
 
@@ -50,7 +51,7 @@ Event-driven coordination does not remove complexity. Quorum must make the trans
 
 ### Phase 4: Observability and Testing
 
-- Add LLM usage metadata to trace reports (prompt tokens, cached tokens, model latency).
+- Add causal trace visualization (DOT/Mermaid) of the event chain.
 - Add fake agent/provider utilities for richer downstream tests.
 
 ### Phase 5: Backend Abstraction
