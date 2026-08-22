@@ -85,6 +85,20 @@ class TraceReport:
             key: self.budget[key] - usage.get(key, 0.0) for key in self.budget
         }
 
+    def to_mermaid(self, *, direction: str = "LR") -> str:
+        """Render the causal chain as a Mermaid flowchart."""
+
+        from .viz import to_mermaid
+
+        return to_mermaid(self.events, direction=direction)
+
+    def to_dot(self, *, name: str = "quorum") -> str:
+        """Render the causal chain as a Graphviz DOT digraph."""
+
+        from .viz import to_dot
+
+        return to_dot(self.events, name=name)
+
 
 @dataclass(frozen=True, slots=True)
 class _Subscription:

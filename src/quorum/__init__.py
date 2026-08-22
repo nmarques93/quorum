@@ -6,6 +6,7 @@ from .clock import ManualClock, SystemClock
 from .event import Event
 from .rules import RuleMatch, RuleTimeout
 from .sink import JsonlEventLog
+from .supervisor import Supervisor
 
 __all__ = [
     "Agent",
@@ -16,6 +17,7 @@ __all__ = [
     "ManualClock",
     "RuleMatch",
     "RuleTimeout",
+    "Supervisor",
     "SystemClock",
     "TaskContext",
     "TraceReport",

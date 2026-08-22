@@ -104,6 +104,47 @@ bus.cancel("run-1")  # cancels in-flight handlers for run-1
 
 Inside a handler, `bus.current_task_context` exposes the deadline, budget, and cancellation state; `bus.remaining_time()` returns seconds until the deadline. A positive `deadline` schedules cancellation via the injected clock, so tests advance it deterministically.
 
+## Supervision
+
+Watch agents and react when one stops beating its heartbeat:
+
+```python
+supervisor = Supervisor(
+    bus,
+    interval=1.0,
+    timeout=30.0,
+    on_hang=lambda agent: alert(agent.name),       # restart, page, etc.
+    on_recovered=lambda agent: log(agent.name),
+)
+
+supervisor.watch(researcher, timeout=60)   # per-agent override
+await supervisor.start()
+```
+
+Agents beat automatically when they handle or emit events, and `agent.beat()` records an explicit heartbeat. An agent that goes silent longer than its `timeout` triggers `on_hang`; the next beat triggers `on_recovered`.
+
+## Dead-Letter Routing
+
+When a handler fails permanently, route the original event somewhere for inspection, replay, or alerting:
+
+```python
+agent = Agent("worker", bus, retries=2, dead_letter=True)  # -> event.deadlettered
+bus.subscribe("event.deadlettered", send_to_ops)
+```
+
+The dead-letter event carries the full original event (`payload["event"]`), the failure type, message, and attempt count. Pass `dead_letter="my.dlq"` to use a custom type.
+
+## Trace Visualization
+
+Render the causal chain as Mermaid or DOT:
+
+```python
+print(bus.trace_report("run-1").to_mermaid())
+print(bus.trace_report("run-1").to_dot())
+```
+
+Failed events (`agent.failed`) are highlighted.
+
 ## Current Semantics
 
 - Events are immutable envelopes with correlation and causation IDs.
@@ -119,6 +160,9 @@ Inside a handler, `bus.current_task_context` exposes the deadline, budget, and c
 - `quorum.testing` provides pytest fixtures (`clock`, `bus`, `agent_factory`) and a `run_until_quiescent` helper.
 - Tasks can be registered with a deadline and budget, cancelled on demand, and auto-cancelled when the deadline expires.
 - Events carry optional usage metrics (tokens, cost, latency) that `trace_report` aggregates against the task budget.
+- A `Supervisor` watches agent heartbeats and fires `on_hang`/`on_recovered` when an agent stalls.
+- Agents can dead-letter permanently-failed work to a configurable event type carrying the original event.
+- Traces can be rendered as DOT or Mermaid causal graphs.
 - Rules fire once per correlation ID, can filter events with predicates, and ignore repeated delivery of the same event ID.
 - Rules can have a timeout and an `on_timeout` callback for incomplete work.
 - The in-memory log is diagnostic and is not durable.

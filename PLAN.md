@@ -28,6 +28,8 @@ Event-driven coordination does not remove complexity. Quorum must make the trans
 - Injectable clock with a deterministic manual mode and pytest fixtures.
 - Task context with deadlines, budgets, and cancellation scoped to a correlation ID.
 - Per-event usage metadata (tokens, cost, latency) aggregated against the task budget.
+- A heartbeat supervisor that reports hung and recovered agents.
+- Dead-letter routing for permanently-failed work and DOT/Mermaid trace visualization.
 
 ## Next Phases
 
@@ -39,9 +41,8 @@ Event-driven coordination does not remove complexity. Quorum must make the trans
 
 ### Phase 2: Agent Runtime
 
-- Add health reporting.
 - Add richer per-agent timeout, retry, cancellation, and failure policies.
-- Add supervisor/liveness hooks for stuck agents.
+- Add automatic heartbeats and richer supervisor hooks.
 
 ### Phase 3: Coordination Policies
 
@@ -51,7 +52,6 @@ Event-driven coordination does not remove complexity. Quorum must make the trans
 
 ### Phase 4: Observability and Testing
 
-- Add causal trace visualization (DOT/Mermaid) of the event chain.
 - Add fake agent/provider utilities for richer downstream tests.
 
 ### Phase 5: Backend Abstraction

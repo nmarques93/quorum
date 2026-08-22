@@ -41,20 +41,43 @@ class Agent:
         timeout: float | None = None,
         retries: int = 0,
         retry_delay: float = 0.0,
+        dead_letter: bool | str = False,
     ) -> None:
         self.name = name
         self.bus = bus
         self.timeout = timeout
         self.retries = retries
         self.retry_delay = retry_delay
+        self.dead_letter = dead_letter
+        self._dead_letter_type = self._resolve_dead_letter_type(dead_letter)
         self._registrations: list[_Registration] = []
         self._active_tasks: set[asyncio.Task[Any]] = set()
         self._started = False
+        self._last_beat: float = self.bus.clock.now()
         self._validate_policy(timeout, retries, retry_delay)
+
+    @staticmethod
+    def _resolve_dead_letter_type(dead_letter: bool | str) -> str | None:
+        if dead_letter is False or dead_letter is None:
+            return None
+        if dead_letter is True:
+            return "event.deadlettered"
+        return dead_letter
 
     @property
     def started(self) -> bool:
         return self._started
+
+    @property
+    def last_beat(self) -> float:
+        """Clock time of this agent's most recent heartbeat."""
+
+        return self._last_beat
+
+    def beat(self) -> None:
+        """Record a heartbeat marking this agent as alive."""
+
+        self._last_beat = self.bus.clock.now()
 
     @overload
     def on(self, pattern: str, handler: Handler, **kwargs: Any) -> Handler: ...
@@ -137,6 +160,7 @@ class Agent:
         else:
             actual_causation_id = causation_id
 
+        self.beat()
         return await self.bus.publish(
             Event(
                 type=event_type,
@@ -175,6 +199,7 @@ class Agent:
         if task is not None:
             self._active_tasks.add(task)
 
+        self.beat()
         timeout = self.timeout if registration.timeout is _UNSET else registration.timeout
         retries = self.retries if registration.retries is None else registration.retries
         retry_delay = (
@@ -212,26 +237,45 @@ class Agent:
         attempts: int,
         timeout: float | None,
     ) -> None:
-        failure = Event(
-            "agent.failed",
-            {
-                "agent": self.name,
-                "event_type": event.type,
-                "error_type": type(error).__name__,
-                "error": str(error),
-                "attempts": attempts,
-                "timeout": timeout,
-            },
-            correlation_id=event.correlation_id,
-            causation_id=event.event_id,
-            source=self.name,
-        )
-        try:
-            await self.bus.publish(failure)
-        except Exception:
-            # Preserve the original handler failure if the diagnostic event
-            # itself has a failing subscriber.
-            pass
+        events = [
+            Event(
+                "agent.failed",
+                {
+                    "agent": self.name,
+                    "event_type": event.type,
+                    "error_type": type(error).__name__,
+                    "error": str(error),
+                    "attempts": attempts,
+                    "timeout": timeout,
+                },
+                correlation_id=event.correlation_id,
+                causation_id=event.event_id,
+                source=self.name,
+            )
+        ]
+        if self._dead_letter_type is not None:
+            events.append(
+                Event(
+                    self._dead_letter_type,
+                    {
+                        "event": event.to_dict(),
+                        "agent": self.name,
+                        "error_type": type(error).__name__,
+                        "error": str(error),
+                        "attempts": attempts,
+                    },
+                    correlation_id=event.correlation_id,
+                    causation_id=event.event_id,
+                    source=self.name,
+                )
+            )
+        for failure in events:
+            try:
+                await self.bus.publish(failure)
+            except Exception:
+                # Preserve the original handler failure if the diagnostic
+                # event itself has a failing subscriber.
+                pass
 
     @staticmethod
     def _validate_policy(
